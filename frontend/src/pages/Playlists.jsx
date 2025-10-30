@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // <-- FIX
+import React, { useState, useEffect } from 'react';
 import { userApi } from '../api/axios';
 import { Loader2, Plus, Music, Trash2 } from 'lucide-react';
 import usePlayer from '../hooks/usePlayer';
@@ -54,8 +54,20 @@ const Playlists = () => {
     }
   };
 
-  const handlePlaySong = (song, playlistSongs) => {
-    playSong(song, playlistSongs);
+  // Helper to get image URL from Spotify track object
+  const getImageUrl = (track) => {
+    return track?.album?.images?.[0]?.url || '';
+  };
+  
+  // Helper to get artist names from Spotify track object
+  const getArtists = (track) => {
+    return track?.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist';
+  };
+
+  // --- THIS IS THE FIX ---
+  const handlePlaySong = (track) => {
+    // Pass just the track's Spotify URI
+    playSong(track.uri);
   };
 
   if (loading) {
@@ -115,26 +127,28 @@ const Playlists = () => {
               </div>
               {playlist.songs.length > 0 ? (
                 <div className="space-y-2">
-                  {playlist.songs.map((song, index) => (
+                  {/* 'song' here is now a Spotify track object */}
+                  {playlist.songs.map((track, index) => (
                     <div
-                      key={song.id}
+                      key={track.id ? `${playlist._id}-${track.id}-${index}` : `${playlist._id}-${index}`} // Handle potential duplicate IDs
                       className="flex items-center p-3 transition-all rounded-lg cursor-pointer group hover:bg-neutral-100 dark:hover:bg-neutral-700"
-                      onClick={() => handlePlaySong(song, playlist.songs)}
+                      // --- THIS IS THE FIX ---
+                      onClick={() => handlePlaySong(track)}
                     >
                       <img
-                        src={getImageUrl(song.image)}
-                        alt={song.name}
+                        src={getImageUrl(track)} // Use helper
+                        alt={track.name}
                         className="w-10 h-10 rounded-md"
                       />
                       <div className="flex-1 ml-4">
                         <p
                           className="font-medium truncate"
-                          dangerouslySetInnerHTML={{ __html: song.name }}
+                          dangerouslySetInnerHTML={{ __html: track.name }}
                         />
                         <p
                           className="text-sm truncate text-neutral-600 dark:text-neutral-400"
                           dangerouslySetInnerHTML={{
-                            __html: getArtists(song.artists),
+                            __html: getArtists(track), // Use helper
                           }}
                         />
                       </div>
@@ -143,7 +157,7 @@ const Playlists = () => {
                 </div>
               ) : (
                 <p className="text-neutral-500">
-                  This playlist is empty. Add some songs!
+                  This playlist is empty. Add songs from the search page!
                 </p>
               )}
             </div>
@@ -156,24 +170,6 @@ const Playlists = () => {
       </div>
     </div>
   );
-};
-
-// Helper functions (you can move these to a utils.js file)
-const getImageUrl = (image) => {
-  if (!image || !Array.isArray(image) || image.length === 0) return '';
-  const bestImage =
-    image.find((img) => img.quality === '150x150') ||
-    image.find((img) => img.quality === '500x500') ||
-    image[image.length - 1];
-  return bestImage.url.replace('http:', 'https:');
-};
-
-const getArtists = (artists) => {
-  if (typeof artists === 'string') return artists;
-  if (artists?.primary) {
-    return artists.primary.map((artist) => artist.name).join(', ');
-  }
-  return 'Various Artists';
 };
 
 export default Playlists;

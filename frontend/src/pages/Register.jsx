@@ -1,6 +1,8 @@
-import React, { useState } from 'react'; // <-- FIX
+// C:\beatflow\frontend\src\pages\Register.jsx
+
+import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Music, Mail, Lock, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -8,13 +10,18 @@ const Register = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { register } = useAuth();
+  // Get the LOCAL register function and user
+  const { register, user } = useAuth();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // You should add password confirmation logic here
     register(username, email, password);
   };
+
+  // If user is already logged in, redirect to home
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-neutral-900">
@@ -57,7 +64,7 @@ const Register = () => {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)} // <-- THIS IS THE FIX
               placeholder="Password"
               required
               className="w-full px-4 py-3 pl-10 bg-gray-100 border-transparent rounded-lg dark:bg-neutral-700 focus:border-primary focus:ring-primary focus:ring-2"

@@ -1,139 +1,206 @@
-import React, { createContext, useState, useRef, useEffect } from 'react';
+// C:\beatflow\frontend\src\context\PlayerContext.jsx
+
+import React, { createContext, useState, useEffect, useRef, useCallback } from 'react';
+import useAuth from '../hooks/useAuth';
 
 const PlayerContext = createContext();
 
 export const PlayerProvider = ({ children }) => {
-  const [currentSong, setCurrentSong] = useState(null);
-  const [playlist, setPlaylist] = useState([]); // The current queue
+  const { accessToken } = useAuth(); // Get the token from AuthContext
+  const [player, setPlayer] = useState(null); // The Spotify Player object
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
+  const [deviceId, setDeviceId] = useState(null); // The ID of this browser player
+  const [currentSong, setCurrentSong] = useState(null); // The full track object from Spotify
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.5); // 50% volume
 
-  const audioRef = useRef(null);
+  const intervalRef = useRef(null);
+  const accessTokenRef = useRef(accessToken);
 
-  // Function to clean up image URLs
-  const cleanUrl = (url) => {
-    if (!url) return '';
-    return url.replace(/_90x90\.jpg|_150x150\.jpg|_500x500\.jpg/g, '_500x500\.jpg');
-  };
-
-  // Function to get the best quality download URL
-  const getBestDownloadUrl = (downloadUrl) => {
-    if (!downloadUrl) return null;
-    return (
-      downloadUrl.find((q) => q.quality === '320kbps') ||
-      downloadUrl.find((q) => q.quality === '160kbps') ||
-      downloadUrl.find((q) => q.quality === '96kbps') ||
-      downloadUrl[0]
-    )?.url;
-  };
-
-  // Effect to handle audio playback
+  // Keep the ref updated with the latest token
   useEffect(() => {
-    if (audioRef.current && currentSong) {
-      if (isPlaying) {
-        audioRef.current.play().catch((err) => console.error('Play error:', err));
-      } else {
-        audioRef.current.pause();
+    accessTokenRef.current = accessToken;
+  }, [accessToken]);
+
+  // Cleanup progress interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
       }
-    }
-  }, [isPlaying, currentSong]);
+    };
+  }, []);
 
-  // Effect to update volume
+  // Effect 1: Define the SDK Ready function. Runs ONCE.
+  // This fixes the 'onSpotifyWebPlaybackSDKReady is not defined' error.
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
+    console.log("PlayerContext mounted. Setting up SDK ready callback...");
 
-  const playSong = (song, songList = []) => {
-    const songUrl = getBestDownloadUrl(song.downloadUrl);
-    if (!songUrl) {
-      alert('This song is not available for streaming.');
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      console.log('Spotify SDK Ready!');
+      const playerInstance = new window.Spotify.Player({
+        name: 'BeatFlow Web Player',
+        getOAuthToken: (cb) => {
+          const token = accessTokenRef.current;
+          if (token) {
+            console.log("SDK requested token, providing...");
+            cb(token);
+          } else {
+            console.error("SDK requested token, but accessToken is not ready.");
+            cb(null); // It will fail auth, which is correct for now
+          }
+        },
+        volume: 0.5,
+      });
+
+      // --- Player Listeners ---
+      playerInstance.addListener('ready', ({ device_id }) => {
+        console.log('Spotify Player Ready, Device ID:', device_id);
+        setDeviceId(device_id);
+        setIsPlayerReady(true);
+      });
+
+      playerInstance.addListener('not_ready', ({ device_id }) => {
+        console.warn('Device ID has gone offline', device_id);
+        setIsPlayerReady(false);
+      });
+
+      playerInstance.addListener('player_state_changed', (state) => {
+        if (!state) {
+          console.log('Player state is null (e.g., logged out)');
+          setIsPlaying(false);
+          setCurrentSong(null);
+          setProgress(0);
+          return;
+        }
+
+        const currentTrack = state.track_window.current_track;
+        setCurrentSong(currentTrack);
+        setIsPlaying(!state.paused);
+        setProgress(state.position);
+        setDuration(state.duration);
+
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        
+        if (!state.paused) {
+          intervalRef.current = setInterval(() => {
+            setProgress((prevProgress) => {
+              if (prevProgress + 1000 > state.duration) {
+                clearInterval(intervalRef.current);
+                return state.duration;
+              }
+              return prevProgress + 1000;
+            });
+          }, 1000);
+        }
+      });
+
+      playerInstance.addListener('initialization_error', ({ message }) => console.error('Failed to initialize', message));
+      playerInstance.addListener('authentication_error', ({ message }) => console.error('Failed to authenticate', message));
+      playerInstance.addListener('account_error', ({ message }) => alert(`Account error: ${message} - You must have Spotify Premium.`));
+      playerInstance.addListener('playback_error', ({ message }) => console.error('Playback error:', message));
+
+      setPlayer(playerInstance); // Save the player instance to state
+    };
+    
+    // In case script is already loaded
+    if (window.Spotify) {
+        console.log("Spotify SDK already loaded, manually calling onReady.");
+        window.onSpotifyWebPlaybackSDKReady();
+    } else {
+        console.log("Waiting for Spotify SDK script to load...");
+    }
+
+  }, []); // Runs only once on mount
+
+  // Effect 2: Connect the player.
+  // This now waits for BOTH the player instance AND the access token.
+  // This fixes the "accessToken is not ready" and "401" errors.
+  useEffect(() => {
+    if (player && accessToken) {
+      console.log("Access token is ready, connecting player...");
+      player.connect().then(success => {
+        if (success) {
+          console.log('Spotify Player connected successfully!');
+        }
+      });
+    }
+  }, [player, accessToken]); // Re-run when player or token becomes available
+
+  // --- Play Function ---
+  const playSong = useCallback((spotifyUri) => {
+    if (!deviceId || !player) {
+      console.error('Player not ready or Device ID missing');
       return;
     }
+    
+    const token = accessTokenRef.current;
+    if (!token) {
+        console.error("Cannot play song, Spotify access token is missing.");
+        return;
+    }
 
-    const cleanedSong = {
-      ...song,
-      image: cleanUrl(song.image[2]?.url),
-      url: songUrl,
-      primaryArtists: song.artists.primary
-        .map((artist) => artist.name)
-        .join(', '),
-    };
+    console.log("Attempting to play URI:", spotifyUri, "on Device:", deviceId);
 
-    setCurrentSong(cleanedSong);
-    setPlaylist(songList.length > 0 ? songList : [song]); // Set the queue
-    setIsPlaying(true);
-  };
+    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        uris: [spotifyUri],
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    }).catch(err => console.error("Play request failed", err));
 
-  const togglePlayPause = () => {
-    if (!currentSong) return;
-    setIsPlaying(!isPlaying);
-  };
+  }, [deviceId, player]);
 
-  const playNext = () => {
-    if (!currentSong || playlist.length === 0) return;
-    const currentIndex = playlist.findIndex((s) => s.id === currentSong.id);
-    const nextIndex = (currentIndex + 1) % playlist.length;
-    playSong(playlist[nextIndex], playlist);
-  };
+  // --- Player Controls ---
+  const togglePlayPause = useCallback(() => {
+    if (!player) return;
+    player.togglePlay();
+  }, [player]);
 
-  const playPrevious = () => {
-    if (!currentSong || playlist.length === 0) return;
-    const currentIndex = playlist.findIndex((s) => s.id === currentSong.id);
-    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    playSong(playlist[prevIndex], playlist);
-  };
+  const playNext = useCallback(() => {
+    if (!player) return;
+    player.nextTrack();
+  }, [player]);
 
-  // Audio element event handlers
-  const onTimeUpdate = () => {
-    setProgress(audioRef.current.currentTime);
-  };
+  const playPrevious = useCallback(() => {
+    if (!player) return;
+    player.previousTrack();
+  }, [player]);
 
-  const onLoadedData = () => {
-    setDuration(audioRef.current.duration);
-  };
-
-  const onEnded = () => {
-    playNext();
-  };
-
-  const handleSeek = (e) => {
-    const newTime = Number(e.target.value);
-    audioRef.current.currentTime = newTime;
-    setProgress(newTime);
-  };
-
-  const handleVolumeChange = (e) => {
-    setVolume(Number(e.target.value));
-  };
+  const handleSeek = useCallback((newPosition) => {
+    if (!player) return;
+    player.seek(newPosition * 1000);
+  }, [player]);
+  
+  const handleVolumeChange = useCallback((newVolume) => {
+     if (!player) return;
+     player.setVolume(newVolume);
+  }, [player]);
 
   return (
     <PlayerContext.Provider
       value={{
+        isPlayerReady,
         currentSong,
         isPlaying,
         progress,
         duration,
-        volume,
         playSong,
         togglePlayPause,
         playNext,
         playPrevious,
         handleSeek,
-        handleVolumeChange,
+        handleVolumeChange
       }}
     >
       {children}
-      <audio
-        ref={audioRef}
-        src={currentSong?.url}
-        onTimeUpdate={onTimeUpdate}
-        onLoadedData={onLoadedData}
-        onEnded={onEnded}
-      />
     </PlayerContext.Provider>
   );
 };

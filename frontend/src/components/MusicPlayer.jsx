@@ -1,4 +1,6 @@
-import React from 'react'; // <-- FIX
+// C:\beatflow\frontend\src\components\MusicPlayer.jsx
+
+import React from 'react';
 import {
   Play,
   Pause,
@@ -9,35 +11,50 @@ import {
   Volume1,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import usePlayer from '../hooks/usePlayer';
+import usePlayer from '../hooks/usePlayer'; // Our updated hook
 
 const MusicPlayer = () => {
   const {
-    currentSong,
+    currentSong, // This is the full track object from Spotify
     isPlaying,
     progress,
     duration,
-    volume,
     togglePlayPause,
     playNext,
     playPrevious,
     handleSeek,
-    handleVolumeChange,
+    handleVolumeChange, // We'll add a volume slider soon
   } = usePlayer();
 
-  if (!currentSong) return null;
+  // Get data from the Spotify track object
+  const imageUrl = currentSong?.album?.images?.[0]?.url;
+  const songName = currentSong?.name;
+  const artists = currentSong?.artists?.map((artist) => artist.name).join(', ');
 
-  const formatTime = (time) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
+  // Convert ms to 0:00 format
+  const formatTime = (ms) => {
+    if (!ms) return '0:00';
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  const VolumeIcon = () => {
-    if (volume === 0) return <VolumeX className="w-5 h-5" />;
-    if (volume < 0.5) return <Volume1 className="w-5 h-5" />;
-    return <Volume2 className="w-5 h-5" />;
+  const progressSeconds = Math.floor(progress / 1000);
+  const durationSeconds = Math.floor(duration / 1000);
+  
+  const onSeek = (e) => {
+      const seekTimeSeconds = Number(e.target.value);
+      handleSeek(seekTimeSeconds);
   };
+  
+  const onVolumeChange = (e) => {
+      const newVolume = Number(e.target.value);
+      handleVolumeChange(newVolume);
+  };
+  
+  // Don't render the player if there's no song loaded
+  if (!currentSong) return null;
 
   return (
     <motion.div
@@ -49,14 +66,14 @@ const MusicPlayer = () => {
       {/* Song Info */}
       <div className="flex items-center w-1/4 gap-3">
         <img
-          src={currentSong.image}
-          alt={currentSong.name}
+          src={imageUrl}
+          alt={songName}
           className="w-14 h-14 rounded-md"
         />
         <div className="hidden md:block">
-          <p className="font-semibold truncate text-md">{currentSong.name}</p>
+          <p className="font-semibold truncate text-md">{songName}</p>
           <p className="text-sm truncate text-neutral-600 dark:text-neutral-400">
-            {currentSong.primaryArtists}
+            {artists}
           </p>
         </div>
       </div>
@@ -83,19 +100,17 @@ const MusicPlayer = () => {
             <SkipForward className="w-6 h-6" />
           </button>
         </div>
-        {/* Progress Bar */}
+        
+        {/* Progress Bar (now in seconds) */}
         <div className="flex items-center w-full gap-2 mt-2">
           <span className="text-xs">{formatTime(progress)}</span>
           <input
             type="range"
             min="0"
-            max={duration || 0}
-            value={progress}
-            onChange={handleSeek}
+            max={durationSeconds || 0}
+            value={progressSeconds || 0}
+            onChange={onSeek} // Use our new seek handler
             className="w-full h-1 rounded-lg appearance-none cursor-pointer bg-neutral-200 dark:bg-neutral-700 range-sm"
-            style={{
-              backgroundSize: `${(progress / duration) * 100}% 100%`,
-            }}
           />
           <span className="text-xs">{formatTime(duration)}</span>
         </div>
@@ -103,14 +118,14 @@ const MusicPlayer = () => {
 
       {/* Volume Control */}
       <div className="flex items-center justify-end w-1/4 gap-2">
-        <VolumeIcon />
+        <Volume2 className="w-5 h-5" />
         <input
           type="range"
           min="0"
           max="1"
           step="0.01"
-          value={volume}
-          onChange={handleVolumeChange}
+          defaultValue="0.5" // Default volume
+          onChange={onVolumeChange} // Use new volume handler
           className="hidden w-24 h-1 rounded-lg appearance-none cursor-pointer md:block bg-neutral-200 dark:bg-neutral-700 range-sm"
         />
       </div>

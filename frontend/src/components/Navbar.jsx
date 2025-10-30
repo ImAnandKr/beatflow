@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react'; // <-- FIX
+// C:\beatflow\frontend\src\components\Navbar.jsx
+
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Music,
@@ -9,6 +11,7 @@ import {
   Moon,
   LogOut,
   LogIn,
+  Heart // <-- Import Heart
 } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 
@@ -67,13 +70,25 @@ const Navbar = () => {
             Search
           </Link>
           {user && (
-            <Link
-              to="/playlists"
-              className="flex items-center gap-2 transition-colors hover:text-primary"
-            >
-              <Library className="w-5 h-5" />
-              My Playlists
-            </Link>
+            <> {/* Use a fragment to group links */}
+              <Link
+                to="/playlists"
+                className="flex items-center gap-2 transition-colors hover:text-primary"
+              >
+                <Library className="w-5 h-5" />
+                My Playlists
+              </Link>
+
+              {/* --- Added "Liked Songs" Link --- */}
+              <Link
+                to="/favorites"
+                className="flex items-center gap-2 transition-colors hover:text-primary"
+              >
+                <Heart className="w-5 h-5" />
+                Liked Songs
+              </Link>
+              {/* ------------------------------- */}
+            </>
           )}
         </div>
       </div>

@@ -1,3 +1,5 @@
+// C:\beatflow\frontend\src\api\axios.js
+
 import axios from 'axios';
 
 // Get the API URL from environment variables
@@ -8,7 +10,7 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// Create an Axios instance for proxied JioSaavn requests
+// Create an Axios instance for proxied JioSaavn/Spotify requests
 const musicApi = axios.create({
   baseURL: `${API_URL}/music`,
 });
@@ -18,12 +20,15 @@ const userApi = axios.create({
   baseURL: `${API_URL}/user`,
 });
 
+// --- THIS IS THE FIX ---
 // Add an interceptor to userApi to automatically add the auth token
 userApi.interceptors.request.use(
   (config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.token) {
-      config.headers.Authorization = `Bearer ${user.token}`;
+    // Read the 'local_token' we store in AuthContext
+    const token = localStorage.getItem('local_token'); 
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -31,5 +36,6 @@ userApi.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+// ----------------------
 
 export { api, musicApi, userApi };

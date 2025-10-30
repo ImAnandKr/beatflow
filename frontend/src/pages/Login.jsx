@@ -1,18 +1,27 @@
-import React, { useState } from 'react'; // <-- FIX
+import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Music, Mail, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// This is the URL to your backend's Spotify login route
+const SPOTIFY_LOGIN_URL = `${import.meta.env.VITE_API_URL}/auth/spotify/login`;
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  // Get the LOCAL login function and the local user object
+  const { login, user, isSpotifyLoggedIn } = useAuth();
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    login(email, password);
+    login(email, password); // Call the local app login
   };
+
+  // If user is already logged in, redirect to home
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-neutral-900">
@@ -27,9 +36,11 @@ const Login = () => {
             Welcome back to BeatFlow
           </h2>
           <p className="mt-2 text-center text-gray-600 text-md dark:text-neutral-300">
-            Sign in to continue
+            Sign in to your app account
           </p>
         </div>
+
+        {/* Local Login Form */}
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="relative">
             <Mail className="absolute w-5 h-5 transform -translate-y-1/2 left-3 top-1/2 text-neutral-400" />
@@ -62,6 +73,7 @@ const Login = () => {
             </button>
           </div>
         </form>
+
         <p className="text-sm text-center text-gray-600 dark:text-neutral-400">
           Don't have an account?{' '}
           <Link
@@ -71,6 +83,32 @@ const Login = () => {
             Sign up
           </Link>
         </p>
+        
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t dark:border-neutral-700"></span>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white dark:bg-neutral-800 text-neutral-500">
+              Or connect player
+            </span>
+          </div>
+        </div>
+
+        {/* Spotify Login Button */}
+        <a
+          href={SPOTIFY_LOGIN_URL}
+          className={`flex items-center justify-center w-full px-4 py-3 font-semibold text-white transition-all duration-300 rounded-lg ${
+            isSpotifyLoggedIn
+              ? 'bg-gray-500 cursor-not-allowed'
+              : 'bg-green-500 hover:bg-green-600'
+          }`}
+          // Disable button if already logged into Spotify
+          onClick={(e) => isSpotifyLoggedIn && e.preventDefault()}
+        >
+          {isSpotifyLoggedIn ? 'Spotify Player Connected' : 'Login with Spotify to Play'}
+        </a>
+
       </motion.div>
     </div>
   );

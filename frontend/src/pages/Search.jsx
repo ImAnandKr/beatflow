@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react'; // <-- FIX
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { musicApi } from '../api/axios';
-import SongCard from '../components/SongCard';
+import SongCard from '../components/SongCard'; // This component is now updated for Spotify tracks
 import { Loader2, SearchIcon } from 'lucide-react';
 
 const Search = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q');
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState([]); // Will hold Spotify tracks
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -21,11 +21,12 @@ const Search = () => {
       try {
         setLoading(true);
         setError(null);
-        const { data } = await musicApi.get(`/search?query=${query}`);
-        setResults(data || []);
+        // Backend now searches Spotify and returns track items
+        const { data } = await musicApi.get(`/search?query=${encodeURIComponent(query)}`);
+        setResults(data || []); // Expecting an array of Spotify track items
       } catch (err) {
         setError('Search failed. Please try again.');
-        console.error(err);
+        console.error('Search Error:', err.response?.data || err.message);
       } finally {
         setLoading(false);
       }
@@ -54,13 +55,15 @@ const Search = () => {
 
       {!loading && !error && results.length > 0 && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {results.map((song) => (
-            <SongCard key={song.id} song={song} playlist={results} />
+          {/* Map through results and pass each item as 'track' to SongCard */}
+          {results.map((track) => (
+            // Make sure track has a unique id
+            track.id ? <SongCard key={track.id} track={track} playlist={results} /> : null
           ))}
         </div>
       )}
 
-      {!loading && !error && results.length === 0 && query && (
+       {!loading && !error && results.length === 0 && query && (
         <div className="flex flex-col items-center justify-center h-64 text-neutral-500">
           <SearchIcon className="w-16 h-16 mb-4" />
           <p className="text-xl">No results found for "{query}".</p>

@@ -11,16 +11,11 @@ const playlistSchema = mongoose.Schema(
       type: String,
       required: true,
     },
-    songs: [
-      {
-        // Store song objects directly
-        id: String,
-        name: String,
-        image: Array,
-        downloadUrl: Array,
-        artists: Object,
-      },
-    ],
+    
+    // --- THIS IS THE FIX ---
+    // Change 'songs' to store the full Spotify track object
+    songs: [mongoose.Schema.Types.Mixed],
+    // -----------------------
   },
   {
     timestamps: true,

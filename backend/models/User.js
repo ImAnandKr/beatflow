@@ -17,16 +17,12 @@ const userSchema = mongoose.Schema(
       type: String,
       required: true,
     },
-    favorites: [
-      {
-        // We store the entire song object for quick access
-        id: String,
-        name: String,
-        image: Array,
-        downloadUrl: Array,
-        artists: Object,
-      },
-    ],
+    
+    // --- THIS IS THE FIX ---
+    // Change 'favorites' to store the full Spotify track object
+    favorites: [mongoose.Schema.Types.Mixed],
+    // -----------------------
+
     playlists: [
       {
         type: mongoose.Schema.Types.ObjectId,

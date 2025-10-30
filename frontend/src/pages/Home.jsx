@@ -1,37 +1,40 @@
-import React, { useState, useEffect } from 'react'; // <-- FIX
+import React, { useState, useEffect } from 'react';
 import { musicApi } from '../api/axios';
-import SongCard from '../components/SongCard';
 import { Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Home = () => {
-  const [trendingSongs, setTrendingSongs] = useState([]);
-  const [playlistTitle, setPlaylistTitle] = useState('Trending Now');
+  const [newReleases, setNewReleases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchTrending = async () => {
+    const fetchNewReleases = async () => {
       try {
         setLoading(true);
         setError(null);
-        // This fetches our hardcoded "Today's Top Hindi" playlist
         const { data } = await musicApi.get('/home');
-        setTrendingSongs(data.songs || []);
-        setPlaylistTitle(data.name || 'Trending Now');
+        setNewReleases(data || []);
       } catch (err) {
-        setError('Failed to load trending songs. Please try again later.');
-        console.error(err);
+        setError('Failed to load new releases. Please try again later.');
+        console.error('Home Fetch Error:', err.response?.data || err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTrending();
+    fetchNewReleases();
   }, []);
+
+  // Helper function to get artist names for albums
+  const getAlbumArtists = (album) => {
+     return album?.artists?.map((artist) => artist.name).join(', ') || 'Various Artists';
+  };
+
 
   return (
     <div className="container mx-auto">
-      <h1 className="mb-6 text-3xl font-bold">{playlistTitle}</h1>
+      <h1 className="mb-6 text-3xl font-bold">New Releases</h1>
 
       {loading && (
         <div className="flex items-center justify-center h-64">
@@ -47,8 +50,29 @@ const Home = () => {
 
       {!loading && !error && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {trendingSongs.map((song) => (
-            <SongCard key={song.id} song={song} playlist={trendingSongs} />
+          {newReleases.map((album) => (
+            <Link key={album.id} to={`/album/${album.id}`} className="block">
+              <div
+                className="relative p-4 overflow-hidden transition-all duration-300 rounded-lg shadow-md cursor-pointer group bg-neutral-50 dark:bg-neutral-800 hover:shadow-lg"
+              >
+                <img
+                  src={album.images?.[0]?.url}
+                  alt={album.name}
+                  className="object-cover w-full rounded-lg aspect-square"
+                />
+                <div className="mt-3">
+                  <h3
+                    className='font-semibold truncate'
+                    dangerouslySetInnerHTML={{ __html: album.name }}
+                  />
+                  {/* Corrected line below */}
+                  <p
+                    className="text-sm truncate text-neutral-600 dark:text-neutral-400"
+                    dangerouslySetInnerHTML={{ __html: getAlbumArtists(album) }}
+                  />
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
       )}

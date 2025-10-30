@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'; // <-- FIX
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { musicApi } from '../api/axios';
-import { Loader2, Music } from 'lucide-react';
+import { Loader2, Music, Play } from 'lucide-react';
 import usePlayer from '../hooks/usePlayer';
 
 const Album = () => {
@@ -16,11 +16,12 @@ const Album = () => {
       try {
         setLoading(true);
         setError(null);
+        // This backend route now fetches from Spotify
         const { data } = await musicApi.get(`/album/${id}`);
         setAlbum(data);
       } catch (err) {
         setError('Failed to load album.');
-        console.error(err);
+        console.error('Album Fetch Error:', err.response?.data || err.message);
       } finally {
         setLoading(false);
       }
@@ -28,18 +29,27 @@ const Album = () => {
     fetchAlbum();
   }, [id]);
 
-  const handlePlaySong = (song, index) => {
-    // Create a playlist of all album songs starting from the one clicked
-    const playlist = album.songs.slice(index);
-    playSong(song, playlist);
+  // Helper to play a specific track from the album list
+const handlePlaySong = (track) => {
+    // playSong(track, album.tracks.items); // <-- OLD
+    playSong(track.uri); // <-- NEW: Pass the track's Spotify URI
   };
 
-  const getImageUrl = (image) => {
-    if (!image || !Array.isArray(image) || image.length === 0) return '';
-    const bestImage =
-      image.find((img) => img.quality === '500x500') ||
-      image[image.length - 1];
-    return bestImage.url.replace('http:', 'https:');
+  // Helper to get image URL from Spotify album object
+  const getImageUrl = (album) => {
+    return album?.images?.[0]?.url || '';
+  };
+  
+  // Helper to get artist names from Spotify album object
+  const getArtists = (album) => {
+    return album?.artists?.map((artist) => artist.name).join(', ') || 'Unknown Artist';
+  };
+
+  // Helper to format track duration
+  const formatTime = (ms) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}:${(seconds < 10 ? '0' : '')}${seconds}`;
   };
 
   if (loading) {
@@ -64,9 +74,9 @@ const Album = () => {
     <div className="container mx-auto">
       <div className="flex flex-col gap-8 md:flex-row">
         {/* Album Cover */}
-        <div className="flex-shrink-0 md:w-1/3">
+        <div className="flex-shrink-0 w-full md:w-1/3 lg:w-1/4">
           <img
-            src={getImageUrl(album.image)}
+            src={getImageUrl(album)}
             alt={album.name}
             className="w-full rounded-lg shadow-xl aspect-square"
           />
@@ -80,26 +90,26 @@ const Album = () => {
           />
           <p
             className="mt-2 text-xl text-neutral-600 dark:text-neutral-400"
-            dangerouslySetInnerHTML={{
-              __html: album.artists.primary.map((a) => a.name).join(', '),
-            }}
+            dangerouslySetInnerHTML={{ __html: getArtists(album) }}
           />
           <p className="mt-1 text-sm text-neutral-500">
-            {album.year} • {album.songCount} songs
+            {album.release_date.substring(0, 4)} • {album.total_tracks} songs
           </p>
           <button
-            onClick={() => handlePlaySong(album.songs[0], 0)}
-            className="px-6 py-3 mt-6 font-bold text-white transition-transform rounded-full bg-primary hover:scale-105"
+            // Play the first track of the album
+            onClick={() => handlePlaySong(album.tracks.items[0])}
+            className="flex items-center gap-2 px-6 py-3 mt-6 font-bold text-white transition-transform rounded-full bg-primary hover:scale-105"
           >
-            Play All
+            <Play className="w-5 h-5 fill-white" />
+            Play
           </button>
 
           {/* Song List */}
           <div className="mt-8 space-y-2">
-            {album.songs.map((song, index) => (
+            {album.tracks.items.map((track, index) => (
               <div
-                key={song.id}
-                onClick={() => handlePlaySong(song, index)}
+                key={track.id}
+                onClick={() => handlePlaySong(track)}
                 className="flex items-center p-3 transition-all rounded-lg cursor-pointer group hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <div className="flex items-center justify-center w-8 text-neutral-500">
@@ -109,19 +119,17 @@ const Album = () => {
                 <div className="flex-1 ml-4">
                   <p
                     className="font-medium truncate"
-                    dangerouslySetInnerHTML={{ __html: song.name }}
+                    dangerouslySetInnerHTML={{ __html: track.name }}
                   />
                   <p
                     className="text-sm truncate text-neutral-600 dark:text-neutral-400"
                     dangerouslySetInnerHTML={{
-                      __html: song.artists.primary
-                        .map((a) => a.name)
-                        .join(', '),
+                      __html: track.artists.map((a) => a.name).join(', '),
                     }}
                   />
                 </div>
                 <div className="text-sm text-neutral-500">
-                  {formatTime(song.duration)}
+                  {formatTime(track.duration_ms)}
                 </div>
               </div>
             ))}
@@ -130,14 +138,6 @@ const Album = () => {
       </div>
     </div>
   );
-};
-
-// Helper function to format time
-const formatTime = (seconds) => {
-  if (!seconds) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = (seconds % 60).toString().padStart(2, '0');
-  return `${mins}:${secs}`;
 };
 
 export default Album;
